@@ -7,7 +7,8 @@
 
 `depgraph` - консольное приложение на Python 3, которое анализирует
 зависимости пакета менеджера Alpine Linux без использования готовых
-менеджеров пакетов и библиотек для получения зависимостей.
+менеджеров пакетов и библиотек для получения зависимостей. Сторонние
+библиотеки не нужны вообще: используется только стандартная библиотека.
 
 Реализован **этап 1** - минимальный прототип с конфигурацией: приложение
 читает настройки из YAML-файла, проверяет их и выводит в формате
@@ -18,7 +19,7 @@
 Структура репозитория:
 
 ```
-src/depgraph/   исходный код (config.py, cli.py, errors.py)
+src/depgraph/   исходный код (config.py, simple_yaml.py, cli.py, errors.py)
 tests/          модульные тесты (unittest)
 examples/       примеры конфигураций и тестового репозитория
 Makefile        сборка, запуск и тесты
@@ -41,6 +42,12 @@ Makefile        сборка, запуск и тесты
 
 Пример: `examples/config.yaml`.
 
+Поддерживаемое подмножество YAML (встроенный разбор, `simple_yaml.py`):
+строки `ключ: значение`, комментарии `# ...`, `true`/`false`, `null`,
+числа, строки без кавычек, в `"двойных"` (с экранированием как в JSON) и
+в `'одинарных'` кавычках. Отступы, вложенность, списки, `[...]`, `{...}`,
+повторяющиеся ключи не поддерживаются и дают ошибку с номером строки.
+
 ### Командная строка
 
 ```
@@ -56,6 +63,7 @@ python -m depgraph [-c PATH]
 
 ### Модули и функции
 
+- `simple_yaml.py`: `parse_yaml(text)` - разбор плоского YAML.
 - `config.py`: `load_config(path)` - загрузка и проверка; `validate(raw)` -
   проверка словаря; `check_*` - проверки отдельных параметров; класс
   `Config` с методом `as_pairs()`.
@@ -73,20 +81,21 @@ python -m depgraph [-c PATH]
 
 ## 3. Сборка и тесты
 
-Требуется Python 3.9+.
+Требуется Python 3.9+. Устанавливать зависимости не нужно.
+
+Linux/macOS (с make):
 
 ```
-make install   # pip install -r requirements.txt (PyYAML)
 make run       # запуск с examples/config.yaml
 make test      # запуск тестов
 ```
 
-Без make:
+Без make (в том числе Windows PowerShell):
 
 ```
-pip install -r requirements.txt
-PYTHONPATH=src python3 -m depgraph -c examples/config.yaml
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+$env:PYTHONPATH = "src"      # Linux/macOS: export PYTHONPATH=src
+python -m depgraph -c examples/config.yaml
+python -m unittest discover -s tests -v
 ```
 
 ## 4. Примеры использования
