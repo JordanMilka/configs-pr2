@@ -2,10 +2,7 @@ PYTHON ?= python3
 CONFIG ?= examples/config.yaml
 export PYTHONPATH := src
 
-.PHONY: install run test clean
-
-install:
-	$(PYTHON) -m pip install -r requirements.txt
+.PHONY: run test clean
 
 run:
 	$(PYTHON) -m depgraph --config $(CONFIG)
