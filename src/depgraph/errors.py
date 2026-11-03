@@ -16,3 +16,7 @@ class ConfigError(Exception):
         """
         super().__init__("; ".join(problems))
         self.problems = list(problems)
+
+
+class RepositoryError(Exception):
+    """Ошибка получения или разбора данных репозитория пакетов."""
