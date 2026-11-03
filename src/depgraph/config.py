@@ -5,9 +5,8 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-import yaml
-
 from depgraph.errors import ConfigError
+from depgraph.simple_yaml import parse_yaml
 
 PARAM_NAMES = (
     "package_name",
@@ -47,23 +46,34 @@ def fail(message):
     raise ConfigError([message])
 
 
-def read_yaml(path):
-    """Прочитать YAML-файл и вернуть его содержимое.
+def read_text(path):
+    """Прочитать текстовый файл конфигурации в кодировке UTF-8.
 
     Raises:
-        ConfigError: файл не найден, недоступен или не является YAML.
+        ConfigError: файл не найден, недоступен или не в UTF-8.
     """
     try:
-        with open(path, encoding="utf-8") as handle:
-            return yaml.safe_load(handle)
+        with open(path, encoding="utf-8-sig") as handle:
+            return handle.read()
     except FileNotFoundError:
         fail(f"файл конфигурации не найден: {path}")
     except OSError as exc:
         fail(f"не удалось прочитать '{path}': {exc.strerror}")
     except UnicodeDecodeError:
         fail(f"файл '{path}' должен быть в кодировке UTF-8")
-    except yaml.YAMLError as exc:
-        fail(f"некорректный YAML в '{path}': {exc}")
+
+
+def read_yaml(path):
+    """Прочитать YAML-файл и вернуть его содержимое.
+
+    Raises:
+        ConfigError: файл не найден, недоступен или не является YAML.
+    """
+    text = read_text(path)
+    try:
+        return parse_yaml(text)
+    except ConfigError as exc:
+        fail(f"некорректный YAML в '{path}': {exc.problems[0]}")
 
 
 def check_structure(raw):
