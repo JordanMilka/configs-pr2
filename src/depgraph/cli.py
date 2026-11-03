@@ -3,12 +3,15 @@
 import argparse
 import sys
 
+from depgraph.apk_index import find_package
 from depgraph.config import load_config
-from depgraph.errors import ConfigError
+from depgraph.errors import ConfigError, RepositoryError
+from depgraph.repository import load_packages
 
 DEFAULT_CONFIG = "config.yaml"
 EXIT_OK = 0
 EXIT_CONFIG_ERROR = 2
+EXIT_DATA_ERROR = 3
 
 
 def build_parser():
@@ -27,22 +30,34 @@ def build_parser():
     return parser
 
 
-def format_value(value):
-    """Преобразовать значение параметра в строку для вывода."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if not value:
-        return '""'
-    return str(value)
+def fetch_package(config):
+    """Получить из репозитория запись о пакете заданной версии.
+
+    Raises:
+        RepositoryError: тестовый режим, ошибка сети, нет пакета/версии.
+    """
+    if config.test_mode:
+        raise RepositoryError(
+            "работа с тестовым репозиторием будет добавлена на этапе 3"
+        )
+    packages = load_packages(config.repository)
+    return find_package(
+        packages, config.package_name, config.package_version
+    )
 
 
-def print_params(config, stream):
-    """Вывести параметры в формате 'ключ: значение'."""
-    for key, value in config.as_pairs():
-        print(f"{key}: {format_value(value)}", file=stream)
+def format_dependencies(package):
+    """Сформировать строки вывода прямых зависимостей пакета."""
+    lines = [f"Пакет: {package.name} {package.version}"]
+    if not package.depends:
+        lines.append("Прямые зависимости: нет")
+        return lines
+    lines.append(f"Прямые зависимости ({len(package.depends)}):")
+    lines.extend(f"  {dep.raw}" for dep in package.depends)
+    return lines
 
 
-def report_errors(error, stream):
+def report_config_errors(error, stream):
     """Вывести список проблем конфигурации."""
     print("Ошибка конфигурации:", file=stream)
     for problem in error.problems:
@@ -55,7 +70,12 @@ def main(argv=None):
     try:
         config = load_config(args.config)
     except ConfigError as error:
-        report_errors(error, sys.stderr)
+        report_config_errors(error, sys.stderr)
         return EXIT_CONFIG_ERROR
-    print_params(config, sys.stdout)
+    try:
+        package = fetch_package(config)
+    except RepositoryError as error:
+        print(f"Ошибка получения данных: {error}", file=sys.stderr)
+        return EXIT_DATA_ERROR
+    print("\n".join(format_dependencies(package)), file=sys.stdout)
     return EXIT_OK
