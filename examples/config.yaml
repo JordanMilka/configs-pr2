@@ -1,0 +1,6 @@
+package_name: busybox
+repository: https://dl-cdn.alpinelinux.org/alpine/v3.20/main
+test_mode: false
+package_version: 1.36.1-r29
+ascii_tree: true
+filter_substring: musl
