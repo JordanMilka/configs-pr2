@@ -1,8 +1,7 @@
 """Вспомогательные функции для тестов."""
 
+import json
 import os
-
-import yaml
 
 VALID_CONFIG = {
     "package_name": "busybox",
@@ -21,11 +20,23 @@ def make_config(**overrides):
     return data
 
 
+def dump_value(value):
+    """Преобразовать значение Python в скаляр YAML."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    return repr(value)
+
+
 def write_yaml(directory, data, name="config.yaml"):
     """Записать словарь в YAML-файл и вернуть путь к нему."""
     path = os.path.join(directory, name)
+    lines = [f"{key}: {dump_value(val)}" for key, val in data.items()]
     with open(path, "w", encoding="utf-8") as handle:
-        yaml.safe_dump(data, handle, allow_unicode=True)
+        handle.write("\n".join(lines) + "\n")
     return path
 
 
