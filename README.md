@@ -421,3 +421,97 @@ $ python -m depgraph stage3 -c examples/config_test_leaf.yaml
 Ошибка получения данных: корневой пакет 'KB' содержит подстроку фильтра 'B' и исключён из анализа
 Ошибка получения данных: файл 'repo.txt': строка 2: ожидается 'ИМЯ: зависимости', получено 'неверно'
 ```
+
+### Этап 3: примеры на реальных пакетах Alpine
+
+Репозиторий Alpine v3.20 (`main`, `x86_64`), три пакета с глубиной графа
+3, 4 и 5 уровней; в каждом графе по 15 транзитивных зависимостей, циклов
+нет. Вывод получен на полном реальном индексе (интернет нужен только для
+запуска; тесты используют сохранённую выгрузку 41 записи,
+`tests/data/alpine_v3.20_main_subset.txt`, и сверяют вывод с этим
+эталоном).
+
+Обратите внимание: зависимости в индексе записаны виртуальными именами
+(`so:libc.musl-x86_64.so.1`, `/bin/sh`), а в графе они показаны пакетами
+(`musl`, `busybox-binsh`). Версия в индексе может измениться - если
+версии нет, программа выведет список доступных.
+
+**alsaconf** (глубина 3, `config_real_alsaconf.yaml`):
+
+```
+$ python -m depgraph stage3 -c examples/config_real_alsaconf.yaml
+Пакет: alsaconf
+Граф зависимостей (порядок BFS, [уровень]):
+  alsaconf [0] -> alsa-utils, bash
+  alsa-utils [1] -> dialog, alsa-ucm-conf, alsa-lib, musl, fftw-single-libs, libformw, libmenuw, libncursesw, libpanelw
+  bash [1] -> busybox-binsh, musl, readline
+  dialog [2] -> musl, libncursesw
+  alsa-ucm-conf [2] -> (нет зависимостей)
+  alsa-lib [2] -> musl
+  musl [2] -> (нет зависимостей)
+  fftw-single-libs [2] -> musl
+  libformw [2] -> ncurses-terminfo-base, musl, libncursesw
+  libmenuw [2] -> ncurses-terminfo-base, musl, libncursesw
+  libncursesw [2] -> ncurses-terminfo-base, musl
+  libpanelw [2] -> ncurses-terminfo-base, musl, libncursesw
+  busybox-binsh [2] -> busybox
+  readline [2] -> musl, libncursesw
+  ncurses-terminfo-base [3] -> (нет зависимостей)
+  busybox [3] -> musl
+Транзитивные зависимости (15): alsa-utils, bash, dialog, alsa-ucm-conf, alsa-lib, musl, fftw-single-libs, libformw, libmenuw, libncursesw, libpanelw, busybox-binsh, readline, ncurses-terminfo-base, busybox
+Циклические зависимости: нет
+
+```
+
+**curl** (глубина 4, `config_real_curl.yaml`):
+
+```
+$ python -m depgraph stage3 -c examples/config_real_curl.yaml
+Пакет: curl
+Граф зависимостей (порядок BFS, [уровень]):
+  curl [0] -> libcurl, musl, zlib
+  libcurl [1] -> ca-certificates, brotli-libs, musl, c-ares, libcrypto3, libidn2, nghttp2-libs, libpsl, libssl3, zlib, zstd-libs
+  musl [1] -> (нет зависимостей)
+  zlib [1] -> musl
+  ca-certificates [2] -> busybox-binsh, musl, libcrypto3
+  brotli-libs [2] -> musl
+  c-ares [2] -> musl
+  libcrypto3 [2] -> musl
+  libidn2 [2] -> musl, libunistring
+  nghttp2-libs [2] -> musl
+  libpsl [2] -> musl, libidn2, libunistring
+  libssl3 [2] -> libcrypto3, musl
+  zstd-libs [2] -> musl
+  busybox-binsh [3] -> busybox
+  libunistring [3] -> musl
+  busybox [4] -> musl
+Транзитивные зависимости (15): libcurl, musl, zlib, ca-certificates, brotli-libs, c-ares, libcrypto3, libidn2, nghttp2-libs, libpsl, libssl3, zstd-libs, busybox-binsh, libunistring, busybox
+Циклические зависимости: нет
+
+```
+
+**util-linux-dev** (глубина 5, `config_real_util_linux_dev.yaml`):
+
+```
+$ python -m depgraph stage3 -c examples/config_real_util_linux_dev.yaml
+Пакет: util-linux-dev
+Граф зависимостей (порядок BFS, [уровень]):
+  util-linux-dev [0] -> libblkid, libfdisk, libmount, libsmartcols, libuuid, sqlite-dev, pkgconf, util-linux
+  libblkid [1] -> musl, libeconf
+  libfdisk [1] -> libblkid, musl, libuuid
+  libmount [1] -> libblkid, musl
+  libsmartcols [1] -> musl
+  libuuid [1] -> musl
+  sqlite-dev [1] -> sqlite, pkgconf, sqlite-libs
+  pkgconf [1] -> musl
+  util-linux [1] -> musl, sqlite-libs
+  musl [2] -> (нет зависимостей)
+  libeconf [2] -> musl
+  sqlite [2] -> musl, readline
+  sqlite-libs [2] -> musl
+  readline [3] -> musl, libncursesw
+  libncursesw [4] -> ncurses-terminfo-base, musl
+  ncurses-terminfo-base [5] -> (нет зависимостей)
+Транзитивные зависимости (15): libblkid, libfdisk, libmount, libsmartcols, libuuid, sqlite-dev, pkgconf, util-linux, musl, libeconf, sqlite, sqlite-libs, readline, libncursesw, ncurses-terminfo-base
+Циклические зависимости: нет
+```
