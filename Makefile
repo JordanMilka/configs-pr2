@@ -2,10 +2,13 @@ PYTHON ?= python3
 CONFIG ?= examples/config.yaml
 export PYTHONPATH := src
 
-.PHONY: run test clean
+.PHONY: stage1 stage2 test clean
 
-run:
-	$(PYTHON) -m depgraph --config $(CONFIG)
+stage1:
+	$(PYTHON) -m depgraph stage1 --config $(CONFIG)
+
+stage2:
+	$(PYTHON) -m depgraph stage2 --config $(CONFIG)
 
 test:
 	$(PYTHON) -m unittest discover -s tests -v
