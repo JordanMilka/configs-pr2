@@ -15,7 +15,8 @@ def fetch_package(config):
     """
     if config.test_mode:
         raise RepositoryError(
-            "работа с тестовым репозиторием будет добавлена на этапе 3"
+            "этап 2 работает только с URL репозитория (test_mode: false); "
+            "тестовый режим доступен в команде stage3"
         )
     packages = load_packages(config.repository)
     return find_package(
