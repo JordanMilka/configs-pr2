@@ -1,0 +1,9 @@
+Alpine Linux: 3.20.10
+apk: apk-tools 2.14.4, compiled for x86_64.
+Repositories:
+https://dl-cdn.alpinelinux.org/alpine/v3.20/main
+https://dl-cdn.alpinelinux.org/alpine/v3.20/community
+Index:
+v3.20.10-118-gcb3382a0eb8 [https://dl-cdn.alpinelinux.org/alpine/v3.20/main]
+v3.20.10-120-gef6cf7f0ba5 [https://dl-cdn.alpinelinux.org/alpine/v3.20/community]
+OK: 24174 distinct packages available
