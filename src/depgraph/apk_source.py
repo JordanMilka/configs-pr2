@@ -43,6 +43,10 @@ class AlpineSource:
         """Проверить, есть ли пакет с таким именем."""
         return self.lookup(name) is not None
 
+    def names(self):
+        """Вернуть имена всех пакетов индекса в порядке появления."""
+        return list(self.by_name)
+
     def resolve(self, dependency):
         """Найти пакет, удовлетворяющий зависимости, или None."""
         candidates = self.by_name.get(dependency.name)
