@@ -13,6 +13,8 @@
 Реализовано:
 
 - **Этап 1** - чтение и проверка конфигурации из YAML-файла.
+- **Этап 5** - визуализация: описание графа на языке диаграмм Mermaid и
+  (если `ascii_tree: true`) ASCII-дерево зависимостей.
 - **Этап 4** - обратные зависимости: какие пакеты зависят от заданного
   (тот же обход BFS над «перевёрнутым» репозиторием).
 - **Этап 3** - граф транзитивных зависимостей (обход BFS с рекурсией),
@@ -30,9 +32,10 @@
 | `python -m depgraph stage2`       | выводит прямые зависимости пакета        |
 | `python -m depgraph stage3`       | строит и выводит граф транзитивных зависимостей |
 | `python -m depgraph stage4`       | выводит обратные зависимости пакета (кто от него зависит) |
+| `python -m depgraph stage5`       | выводит граф на языке Mermaid и, если задано, ASCII-дерево |
 
-Следующие этапы (граф, обратные зависимости, Mermaid) добавляются
-отдельными коммитами и своей командой `stage5`.
+Все этапы практической работы реализованы; каждый добавлен отдельными
+коммитами и своей командой.
 
 Как это работает. Репозиторий Alpine хранит для каждой архитектуры файл
 `APKINDEX.tar.gz` - tar-архив со сжатым текстовым индексом `APKINDEX`.
@@ -48,6 +51,8 @@ src/depgraph/
   stage2.py       этап 2: прямые зависимости пакета
   stage3.py       этап 3: граф транзитивных зависимостей
   stage4.py       этап 4: обратные зависимости
+  stage5.py       этап 5: Mermaid и ASCII-дерево
+  visualize.py    форматирование графа: Mermaid, ASCII-дерево
   graph.py        BFS с рекурсией, фильтр, поиск циклов
   reverse.py      источник обратных зависимостей
   apk_source.py   сопоставление зависимостей пакетам индекса Alpine
@@ -59,6 +64,7 @@ src/depgraph/
   errors.py       исключения
 tests/            модульные тесты (unittest)
 examples/         примеры конфигураций
+docs/             полные примеры вывода (examples.md)
 Makefile          запуск и тесты
 ```
 
@@ -72,12 +78,13 @@ Makefile          запуск и тесты
 |--------------------|--------|---------------------------------------------|
 | `package_name`     | строка | Имя анализируемого пакета                   |
 | `repository`       | строка | URL каталога репозитория с `APKINDEX.tar.gz` (с архитектурой, например `https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64`) либо URL самого файла; в тестовом режиме - путь к файлу описания графа |
-| `test_mode`        | bool   | `true` - `repository` это путь к файлу тестового репозитория (`stage3`, `stage4`); `false` - URL |
+| `test_mode`        | bool   | `true` - `repository` это путь к файлу тестового репозитория (`stage3`-`stage5`); `false` - URL |
 | `package_version`  | строка | Точная версия пакета, как в индексе: `1.36.1-r29`. Берите в кавычки (`"1.10"`), иначе YAML превратит её в число |
 | `ascii_tree`       | bool   | Вывод зависимостей в виде ASCII-дерева (этап 5) |
 | `filter_substring` | строка | Пакеты, имя которых содержит подстроку, не учитываются (этап 3). Пустая строка `""` - без фильтра; без пробелов |
 
-Параметр `ascii_tree` проверяется, но будет использован на этапе 5.
+Параметр `ascii_tree` используется командой `stage5`: при `true` после
+диаграммы Mermaid выводится ASCII-дерево.
 `filter_substring` применяется командами `stage3` и `stage4`. Команда `stage2`
 работает только с URL (`test_mode: false`); в тестовом режиме она
 подсказывает использовать `stage3`.
@@ -102,6 +109,7 @@ python -m depgraph КОМАНДА [-c PATH]
 | `stage2` | этап 2: вывести прямые зависимости пакета заданной версии   |
 | `stage3` | этап 3: построить граф транзитивных зависимостей (BFS)      |
 | `stage4` | этап 4: вывести обратные зависимости пакета                 |
+| `stage5` | этап 5: вывести граф на языке Mermaid (и ASCII-дерево)      |
 
 Команда обязательна. Опции указываются **после** команды:
 
@@ -194,6 +202,36 @@ filter_substring: musl
 - Зависимости только из загруженного индекса учитываются; пакеты из
   других репозиториев (`community`) здесь не видны.
 
+### Что выводит stage5
+
+Граф строится так же, как на этапе 3 (рекурсивный BFS, фильтр, циклы), а
+затем выводится в виде текста.
+
+**Диаграмма Mermaid** выводится всегда, начинается со строки `graph TD`
+и подходит для вставки в [mermaid.live](https://mermaid.live) или в
+блок ```` ```mermaid ```` на GitHub:
+
+- по одному ребру `пакет --> зависимость` на каждую зависимость, в
+  порядке обхода BFS; циклы и зависимость от самого себя рисуются
+  обычными рёбрами;
+- имена, которые нельзя использовать как идентификатор Mermaid
+  (с дефисом, точкой, двоеточием, слово `end` и т.п.), получают
+  идентификаторы `n0`, `n1`, ... и объявляются с настоящим именем в
+  подписи: `n0["alsa-utils"]`;
+- корневой пакет выделен классом `root`, пакеты, которых нет в
+  репозитории, - пунктирным классом `missing`;
+- исключённые фильтром пакеты в диаграмму не попадают.
+
+**ASCII-дерево** выводится после диаграммы, если `ascii_tree: true`.
+Оно строится только из символов ASCII (`|--`, `` `-- ``, `|`), чтобы вывод
+можно было безопасно перенаправить в файл в любой кодировке.
+Зависимости пакета раскрываются один раз, при первой встрече, иначе
+дерево разрослось бы из-за общих зависимостей:
+
+- `(*)` - пакет уже раскрыт выше (помечаются только пакеты, у которых
+  есть свои зависимости);
+- `(цикл)` - пакет уже есть среди предков, продолжение не выводится.
+
 ### Тестовый режим (`test_mode: true`)
 
 Вместо URL в `repository` указывается путь к файлу описания графа.
@@ -212,9 +250,10 @@ D:
 выводятся с номером строки (неверная строка, строчные буквы или цифры в
 имени, повторное описание пакета, пустой файл).
 
-Готовый файл `examples/test_repo.txt` содержит семь случаев. Для этапа 3
+Готовый файл `examples/test_repo.txt` содержит восемь случаев. Для этапа 3
 есть конфигурации `examples/config_test_*.yaml`, для этапа 4 -
-`examples/config_reverse_*.yaml` (см. примеры ниже).
+`examples/config_reverse_*.yaml`, для этапа 5 - `examples/config_viz_*.yaml`
+(примеры - в [docs/examples.md](docs/examples.md)).
 
 ### Модули и функции
 
@@ -228,6 +267,9 @@ D:
 - `stage3.py`: `run(config, stream)`, `open_source`, `format_graph`.
 - `reverse.py`: класс `ReverseSource` - обратные зависимости.
 - `stage4.py`: `run(config, stream)`, `format_graph`.
+- `visualize.py`: `format_mermaid(graph)` - описание Mermaid;
+  `format_tree(graph)` - ASCII-дерево (обход без рекурсии).
+- `stage5.py`: `run(config, stream)`, `format_output`.
 - `repository.py`: `load_packages(url)` - скачать, распаковать и разобрать
   индекс; `index_url`, `download`, `extract_index`.
 - `apk_index.py`: `parse_index(text)`, `parse_dependency(token)`,
@@ -246,7 +288,7 @@ D:
 отсутствующие ключи, неверный тип или формат параметров (все проблемы
 выводятся сразу, код 2).
 
-Данные (код 3), этапы 3-4: корневой пакет не найден, корень исключён
+Данные (код 3), этапы 3-5: корневой пакет не найден, корень исключён
 фильтром, граф слишком глубокий, ошибка формата файла тестового
 репозитория (с номером строки), файл репозитория нельзя прочитать.
 
@@ -266,6 +308,7 @@ make stage1    # этап 1 с examples/config.yaml
 make stage2    # этап 2 (нужен доступ в интернет)
 make stage3 CONFIG=examples/config_test_cycle.yaml
 make stage4 CONFIG=examples/config_reverse_diamond.yaml
+make stage5 CONFIG=examples/config_real_curl.yaml
 make stage2 CONFIG=my.yaml
 make test      # запуск тестов
 ```
@@ -278,6 +321,7 @@ python -m depgraph stage1 -c examples/config.yaml
 python -m depgraph stage2 -c examples/config.yaml
 python -m depgraph stage3 -c examples/config_test_mode.yaml
 python -m depgraph stage4 -c examples/config_reverse_diamond.yaml
+python -m depgraph stage5 -c examples/config_viz_shared.yaml
 python -m unittest discover -s tests -v
 ```
 
@@ -364,13 +408,13 @@ usage: depgraph [-h] КОМАНДА ...
 depgraph: error: the following arguments are required: КОМАНДА
 ```
 
-### Этап 3: примеры с тестовым репозиторием
+### Примеры этапов 3-5 (кратко)
 
-Все примеры используют `examples/test_repo.txt`; различаются только
-`package_name` и `filter_substring` в конфигурации. Вывод ниже получен
-запуском команд.
+Тестовый репозиторий `examples/test_repo.txt`, пакет `T`/`A` и др.
+Полные примеры (все случаи, три реальных пакета Alpine с диаграммами
+Mermaid) - в [docs/examples.md](docs/examples.md).
 
-**Ромб** (`config_test_mode.yaml`, корень `A`): общая зависимость `D` встречается в графе один раз.
+Этап 3, граф зависимостей (ромб, `examples/config_test_mode.yaml`):
 
 ```
 $ python -m depgraph stage3 -c examples/config_test_mode.yaml
@@ -384,181 +428,7 @@ $ python -m depgraph stage3 -c examples/config_test_mode.yaml
 Циклические зависимости: нет
 ```
 
-**Цикл** (`config_test_cycle.yaml`, корень `E`): обход завершается, цикл выведен.
-
-```
-$ python -m depgraph stage3 -c examples/config_test_cycle.yaml
-Пакет: E
-Граф зависимостей (порядок BFS, [уровень]):
-  E [0] -> F
-  F [1] -> G
-  G [2] -> E, H
-  H [3] -> (нет зависимостей)
-Транзитивные зависимости (3): F, G, H
-Циклические зависимости (1):
-  E -> F -> G -> E
-```
-
-**Зависимость от самого себя** (`config_test_self_loop.yaml`, корень `I`):
-
-```
-$ python -m depgraph stage3 -c examples/config_test_self_loop.yaml
-Пакет: I
-Граф зависимостей (порядок BFS, [уровень]):
-  I [0] -> I, J
-  J [1] -> (нет зависимостей)
-Транзитивные зависимости (1): J
-Циклические зависимости (1):
-  I -> I
-```
-
-**Фильтр** (`config_test_filter.yaml`, корень `K`): подстрока `B`: пакеты `KB` и `BK` исключены, `L` остаётся.
-
-```
-$ python -m depgraph stage3 -c examples/config_test_filter.yaml
-Пакет: K
-Граф зависимостей (порядок BFS, [уровень]):
-  K [0] -> L
-  L [1] -> (нет зависимостей)
-Транзитивные зависимости (1): L
-Циклические зависимости: нет
-Исключено фильтром 'B': BK, KB
-```
-
-**Пакет не описан в файле** (`config_test_unresolved.yaml`, корень `M`):
-
-```
-$ python -m depgraph stage3 -c examples/config_test_unresolved.yaml
-Пакет: M
-Граф зависимостей (порядок BFS, [уровень]):
-  M [0] -> N, Z
-  N [1] -> (нет зависимостей)
-  Z [1] -> (нет зависимостей)
-Транзитивные зависимости (2): N, Z
-Циклические зависимости: нет
-Не найдены в репозитории (1): N
-```
-
-**Пакет без зависимостей** (`config_test_leaf.yaml`, корень `Y`):
-
-```
-$ python -m depgraph stage3 -c examples/config_test_leaf.yaml
-Пакет: Y
-Граф зависимостей (порядок BFS, [уровень]):
-  Y [0] -> (нет зависимостей)
-Транзитивные зависимости (0): нет
-Циклические зависимости: нет
-```
-
-Ошибки тестового режима (код 3):
-
-```
-Ошибка получения данных: пакет 'Q' не найден в репозитории
-Ошибка получения данных: корневой пакет 'KB' содержит подстроку фильтра 'B' и исключён из анализа
-Ошибка получения данных: файл 'repo.txt': строка 2: ожидается 'ИМЯ: зависимости', получено 'неверно'
-```
-
-### Этап 3: примеры на реальных пакетах Alpine
-
-Репозиторий Alpine v3.20 (`main`, `x86_64`), три пакета с глубиной графа
-3, 4 и 5 уровней; в каждом графе по 15 транзитивных зависимостей, циклов
-нет. Вывод получен на полном реальном индексе (интернет нужен только для
-запуска; тесты используют сохранённую выгрузку 41 записи,
-`tests/data/alpine_v3.20_main_subset.txt`, и сверяют вывод с этим
-эталоном).
-
-Обратите внимание: зависимости в индексе записаны виртуальными именами
-(`so:libc.musl-x86_64.so.1`, `/bin/sh`), а в графе они показаны пакетами
-(`musl`, `busybox-binsh`). Версия в индексе может измениться - если
-версии нет, программа выведет список доступных.
-
-**alsaconf** (глубина 3, `config_real_alsaconf.yaml`):
-
-```
-$ python -m depgraph stage3 -c examples/config_real_alsaconf.yaml
-Пакет: alsaconf
-Граф зависимостей (порядок BFS, [уровень]):
-  alsaconf [0] -> alsa-utils, bash
-  alsa-utils [1] -> dialog, alsa-ucm-conf, alsa-lib, musl, fftw-single-libs, libformw, libmenuw, libncursesw, libpanelw
-  bash [1] -> busybox-binsh, musl, readline
-  dialog [2] -> musl, libncursesw
-  alsa-ucm-conf [2] -> (нет зависимостей)
-  alsa-lib [2] -> musl
-  musl [2] -> (нет зависимостей)
-  fftw-single-libs [2] -> musl
-  libformw [2] -> ncurses-terminfo-base, musl, libncursesw
-  libmenuw [2] -> ncurses-terminfo-base, musl, libncursesw
-  libncursesw [2] -> ncurses-terminfo-base, musl
-  libpanelw [2] -> ncurses-terminfo-base, musl, libncursesw
-  busybox-binsh [2] -> busybox
-  readline [2] -> musl, libncursesw
-  ncurses-terminfo-base [3] -> (нет зависимостей)
-  busybox [3] -> musl
-Транзитивные зависимости (15): alsa-utils, bash, dialog, alsa-ucm-conf, alsa-lib, musl, fftw-single-libs, libformw, libmenuw, libncursesw, libpanelw, busybox-binsh, readline, ncurses-terminfo-base, busybox
-Циклические зависимости: нет
-
-```
-
-**curl** (глубина 4, `config_real_curl.yaml`):
-
-```
-$ python -m depgraph stage3 -c examples/config_real_curl.yaml
-Пакет: curl
-Граф зависимостей (порядок BFS, [уровень]):
-  curl [0] -> libcurl, musl, zlib
-  libcurl [1] -> ca-certificates, brotli-libs, musl, c-ares, libcrypto3, libidn2, nghttp2-libs, libpsl, libssl3, zlib, zstd-libs
-  musl [1] -> (нет зависимостей)
-  zlib [1] -> musl
-  ca-certificates [2] -> busybox-binsh, musl, libcrypto3
-  brotli-libs [2] -> musl
-  c-ares [2] -> musl
-  libcrypto3 [2] -> musl
-  libidn2 [2] -> musl, libunistring
-  nghttp2-libs [2] -> musl
-  libpsl [2] -> musl, libidn2, libunistring
-  libssl3 [2] -> libcrypto3, musl
-  zstd-libs [2] -> musl
-  busybox-binsh [3] -> busybox
-  libunistring [3] -> musl
-  busybox [4] -> musl
-Транзитивные зависимости (15): libcurl, musl, zlib, ca-certificates, brotli-libs, c-ares, libcrypto3, libidn2, nghttp2-libs, libpsl, libssl3, zstd-libs, busybox-binsh, libunistring, busybox
-Циклические зависимости: нет
-
-```
-
-**util-linux-dev** (глубина 5, `config_real_util_linux_dev.yaml`):
-
-```
-$ python -m depgraph stage3 -c examples/config_real_util_linux_dev.yaml
-Пакет: util-linux-dev
-Граф зависимостей (порядок BFS, [уровень]):
-  util-linux-dev [0] -> libblkid, libfdisk, libmount, libsmartcols, libuuid, sqlite-dev, pkgconf, util-linux
-  libblkid [1] -> musl, libeconf
-  libfdisk [1] -> libblkid, musl, libuuid
-  libmount [1] -> libblkid, musl
-  libsmartcols [1] -> musl
-  libuuid [1] -> musl
-  sqlite-dev [1] -> sqlite, pkgconf, sqlite-libs
-  pkgconf [1] -> musl
-  util-linux [1] -> musl, sqlite-libs
-  musl [2] -> (нет зависимостей)
-  libeconf [2] -> musl
-  sqlite [2] -> musl, readline
-  sqlite-libs [2] -> musl
-  readline [3] -> musl, libncursesw
-  libncursesw [4] -> ncurses-terminfo-base, musl
-  ncurses-terminfo-base [5] -> (нет зависимостей)
-Транзитивные зависимости (15): libblkid, libfdisk, libmount, libsmartcols, libuuid, sqlite-dev, pkgconf, util-linux, musl, libeconf, sqlite, sqlite-libs, readline, libncursesw, ncurses-terminfo-base
-Циклические зависимости: нет
-```
-
-### Этап 4: примеры с тестовым репозиторием
-
-Все примеры используют `examples/test_repo.txt`; различаются
-`package_name` и `filter_substring` в конфигурации. Вывод получен
-запуском команд.
-
-**Ромб** (`config_reverse_diamond.yaml`, пакет `D`): у `D` напрямую зависят `B` и `C`, а `A` зависит от него через оба пути и выводится один раз.
+Этап 4, обратные зависимости (`examples/config_reverse_diamond.yaml`):
 
 ```
 $ python -m depgraph stage4 -c examples/config_reverse_diamond.yaml
@@ -572,86 +442,25 @@ $ python -m depgraph stage4 -c examples/config_reverse_diamond.yaml
 Циклические зависимости: нет
 ```
 
-**Цикл** (`config_reverse_cycle.yaml`, пакет `E`): `E` лежит на цикле `E -> F -> G -> E`: зависящие пакеты `G`, `F`, цикл выведен, обход завершается.
+Этап 5, диаграмма Mermaid и ASCII-дерево (`examples/config_viz_shared.yaml`):
 
 ```
-$ python -m depgraph stage4 -c examples/config_reverse_cycle.yaml
-Пакет: E
-Обратные зависимости (порядок BFS, [уровень], '<-' ведёт к зависящим пакетам):
-  E [0] <- G
-  G [1] <- F
-  F [2] <- E
-Пакеты, зависящие от E (2): G, F
-Циклические зависимости (1):
-  E <- G <- F <- E
-```
+$ python -m depgraph stage5 -c examples/config_viz_shared.yaml
+graph TD
+    T --> U
+    T --> V
+    U --> W
+    V --> W
+    W --> X
+    classDef root fill:#d0e6ff,stroke:#2b5c99,stroke-width:2px
+    class T root
 
-**Зависимость от самого себя** (`config_reverse_self_loop.yaml`, пакет `J`): `I` зависит от `J` и от самого себя.
-
-```
-$ python -m depgraph stage4 -c examples/config_reverse_self_loop.yaml
-Пакет: J
-Обратные зависимости (порядок BFS, [уровень], '<-' ведёт к зависящим пакетам):
-  J [0] <- I
-  I [1] <- I
-Пакеты, зависящие от J (1): I
-Циклические зависимости (1):
-  I <- I
-```
-
-**Фильтр** (`config_reverse_filter.yaml`, пакет `L`): подстрока `B`: `KB` и `BK` зависят от `L`, но исключены; `K` зависит от `L` напрямую и остаётся.
-
-```
-$ python -m depgraph stage4 -c examples/config_reverse_filter.yaml
-Пакет: L
-Обратные зависимости (порядок BFS, [уровень], '<-' ведёт к зависящим пакетам):
-  L [0] <- K
-  K [1] <- (никто не зависит)
-Пакеты, зависящие от L (1): K
-Циклические зависимости: нет
-Исключено фильтром 'B': BK, KB
-```
-
-**Пакет не описан в файле** (`config_reverse_unresolved.yaml`, пакет `N`): `N` только упомянут как зависимость `M`.
-
-```
-$ python -m depgraph stage4 -c examples/config_reverse_unresolved.yaml
-Пакет: N
-Обратные зависимости (порядок BFS, [уровень], '<-' ведёт к зависящим пакетам):
-  N [0] <- M
-  M [1] <- (никто не зависит)
-Пакеты, зависящие от N (1): M
-Циклические зависимости: нет
-```
-
-**Цепочка** (`config_reverse_chain.yaml`, пакет `S`): зависящие пакеты на трёх уровнях.
-
-```
-$ python -m depgraph stage4 -c examples/config_reverse_chain.yaml
-Пакет: S
-Обратные зависимости (порядок BFS, [уровень], '<-' ведёт к зависящим пакетам):
-  S [0] <- R
-  R [1] <- Q
-  Q [2] <- P
-  P [3] <- (никто не зависит)
-Пакеты, зависящие от S (3): R, Q, P
-Циклические зависимости: нет
-```
-
-**Никто не зависит** (`config_reverse_none.yaml`, пакет `A`): от `A` не зависит ни один пакет.
-
-```
-$ python -m depgraph stage4 -c examples/config_reverse_none.yaml
-Пакет: A
-Обратные зависимости (порядок BFS, [уровень], '<-' ведёт к зависящим пакетам):
-  A [0] <- (никто не зависит)
-Пакеты, зависящие от A (0): нет
-Циклические зависимости: нет
-```
-
-Ошибки (код 3):
-
-```
-Ошибка получения данных: пакет 'Q' не найден в репозитории
-Ошибка получения данных: корневой пакет 'KB' содержит подстроку фильтра 'B' и исключён из анализа
+ASCII-дерево зависимостей:
+T
+|-- U
+|   `-- W
+|       `-- X
+`-- V
+    `-- W (*)
+(*) - зависимости этого пакета показаны выше
 ```
