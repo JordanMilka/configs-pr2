@@ -1,60 +1,50 @@
-"""Интерфейс командной строки."""
+"""Интерфейс командной строки: отдельная команда для каждого этапа."""
 
 import argparse
 import sys
 
-from depgraph.apk_index import find_package
+from depgraph import stage1, stage2
 from depgraph.config import load_config
 from depgraph.errors import ConfigError, RepositoryError
-from depgraph.repository import load_packages
 
 DEFAULT_CONFIG = "config.yaml"
 EXIT_OK = 0
 EXIT_CONFIG_ERROR = 2
 EXIT_DATA_ERROR = 3
+STAGES = {"stage1": stage1, "stage2": stage2}
 
 
-def build_parser():
-    """Создать парсер аргументов командной строки."""
-    parser = argparse.ArgumentParser(
-        prog="depgraph",
-        description="Визуализация графа зависимостей пакетов Alpine.",
-    )
-    parser.add_argument(
+def build_common_parser():
+    """Создать родительский парсер с опциями, общими для всех этапов."""
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
         "-c",
         "--config",
         default=DEFAULT_CONFIG,
         help=f"путь к YAML-файлу конфигурации (по умолчанию "
         f"{DEFAULT_CONFIG})",
     )
-    return parser
+    return common
 
 
-def fetch_package(config):
-    """Получить из репозитория запись о пакете заданной версии.
-
-    Raises:
-        RepositoryError: тестовый режим, ошибка сети, нет пакета/версии.
-    """
-    if config.test_mode:
-        raise RepositoryError(
-            "работа с тестовым репозиторием будет добавлена на этапе 3"
-        )
-    packages = load_packages(config.repository)
-    return find_package(
-        packages, config.package_name, config.package_version
+def build_parser():
+    """Создать парсер аргументов с командами этапов."""
+    parser = argparse.ArgumentParser(
+        prog="depgraph",
+        description="Визуализация графа зависимостей пакетов Alpine.",
     )
-
-
-def format_dependencies(package):
-    """Сформировать строки вывода прямых зависимостей пакета."""
-    lines = [f"Пакет: {package.name} {package.version}"]
-    if not package.depends:
-        lines.append("Прямые зависимости: нет")
-        return lines
-    lines.append(f"Прямые зависимости ({len(package.depends)}):")
-    lines.extend(f"  {dep.raw}" for dep in package.depends)
-    return lines
+    subparsers = parser.add_subparsers(
+        dest="command", metavar="КОМАНДА", required=True
+    )
+    common = build_common_parser()
+    for name, stage in STAGES.items():
+        subparsers.add_parser(
+            name,
+            parents=[common],
+            help=stage.SUMMARY,
+            description=stage.SUMMARY,
+        )
+    return parser
 
 
 def report_config_errors(error, stream):
@@ -73,9 +63,8 @@ def main(argv=None):
         report_config_errors(error, sys.stderr)
         return EXIT_CONFIG_ERROR
     try:
-        package = fetch_package(config)
+        STAGES[args.command].run(config, sys.stdout)
     except RepositoryError as error:
         print(f"Ошибка получения данных: {error}", file=sys.stderr)
         return EXIT_DATA_ERROR
-    print("\n".join(format_dependencies(package)), file=sys.stdout)
     return EXIT_OK
