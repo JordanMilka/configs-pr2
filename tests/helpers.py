@@ -1,7 +1,11 @@
 """Вспомогательные функции для тестов."""
 
+import contextlib
+import io
 import json
 import os
+
+from depgraph.cli import main
 
 VALID_CONFIG = {
     "package_name": "busybox",
@@ -47,3 +51,11 @@ def write_text(directory, text, name="config.yaml", mode="w"):
     with open(path, mode, **kwargs) as handle:
         handle.write(text)
     return path
+
+
+def run_cli(args):
+    """Запустить main и вернуть (код, stdout, stderr)."""
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = main(args)
+    return code, out.getvalue(), err.getvalue()

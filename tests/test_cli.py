@@ -14,17 +14,9 @@ from depgraph.cli import (
     EXIT_OK,
     main,
 )
-from helpers import make_config, write_text, write_yaml
+from helpers import make_config, run_cli, write_text, write_yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-
-
-def run_cli(args):
-    """Запустить main и вернуть (код, stdout, stderr)."""
-    out, err = io.StringIO(), io.StringIO()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        code = main(args)
-    return code, out.getvalue(), err.getvalue()
 
 
 class Stage1Tests(unittest.TestCase):
