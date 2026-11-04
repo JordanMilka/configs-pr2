@@ -37,6 +37,10 @@ class FileSource:
         """Проверить, описан ли пакет в файле."""
         return name in self.table
 
+    def names(self):
+        """Вернуть имена описанных пакетов в порядке файла."""
+        return list(self.table)
+
     def children(self, name):
         """Вернуть прямые зависимости пакета (пустой список, если нет)."""
         dependencies = self.table.get(name, ())
