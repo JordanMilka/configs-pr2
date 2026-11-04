@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from depgraph import stage1, stage2
+from depgraph import stage1, stage2, stage3
 from depgraph.config import load_config
 from depgraph.errors import ConfigError, RepositoryError
 
@@ -11,7 +11,7 @@ DEFAULT_CONFIG = "config.yaml"
 EXIT_OK = 0
 EXIT_CONFIG_ERROR = 2
 EXIT_DATA_ERROR = 3
-STAGES = {"stage1": stage1, "stage2": stage2}
+STAGES = {"stage1": stage1, "stage2": stage2, "stage3": stage3}
 
 
 def build_common_parser():
