@@ -15,11 +15,13 @@ from depgraph.apk_source import AlpineSource
 from depgraph.cli import EXIT_DATA_ERROR, EXIT_OK
 from depgraph.graph import build_graph
 from depgraph.repository import load_packages
+from depgraph.visualize import format_mermaid, format_tree
 from helpers import make_config, run_cli, write_yaml
 
 DATA = Path(__file__).resolve().parent / "data"
 HEADER = "### "
 TRANSITIVE_COUNT = 15
+BLANK = "    "
 CASES = (
     ("alsaconf", "1.2.11-r1", 3),
     ("curl", "8.14.1-r2", 4),
@@ -140,6 +142,58 @@ class RealPackagesTests(unittest.TestCase):
         self.assertIn("Прямые зависимости (4):", out)
         self.assertIn("  libcurl=8.14.1-r2", out)
         self.assertIn("  so:libz.so.1", out)
+
+    def test_mermaid_has_every_edge(self):
+        """Диаграмма Mermaid содержит все рёбра графа без повторов."""
+        for name, version, _depth in CASES:
+            with self.subTest(package=name):
+                graph = self.graph(name, version)
+                lines = format_mermaid(graph)
+                edges = [line for line in lines if "-->" in line]
+                expected = sum(len(kids) for kids in graph.edges.values())
+                self.assertEqual(lines[0], "graph TD")
+                self.assertEqual(len(edges), expected)
+                self.assertEqual(len(set(edges)), expected)
+
+    def test_mermaid_labels_for_alpine_names(self):
+        """Имена с дефисами получают подписи, идентификаторы безопасны."""
+        lines = format_mermaid(self.graph("alsaconf", "1.2.11-r1"))
+        self.assertIn('    n0["alsa-utils"]', lines)
+        for line in lines:
+            if "-->" in line:
+                self.assertNotIn("-", line.replace("-->", ""))
+
+    def test_tree_shows_all_packages(self):
+        """В ASCII-дереве есть каждый пакет графа."""
+        for name, version, _depth in CASES:
+            with self.subTest(package=name):
+                graph = self.graph(name, version)
+                text = "\n".join(format_tree(graph))
+                for package in graph.edges:
+                    self.assertIn(package, text)
+
+    def test_tree_depth_matches_graph(self):
+        """Глубина ветвей дерева не меньше глубины графа."""
+        for name, version, depth in CASES:
+            with self.subTest(package=name):
+                lines = format_tree(self.graph(name, version))
+                deepest = max(len(line) - len(line.lstrip("| `-"))
+                              for line in lines if "-- " in line)
+                self.assertGreaterEqual(deepest // len(BLANK), depth)
+
+    def test_stage5_ascii_tree_parameter(self):
+        """Параметр ascii_tree управляет выводом дерева."""
+        for flag in (False, True):
+            with self.subTest(ascii_tree=flag):
+                data = make_config(
+                    package_name="curl", package_version="8.14.1-r2",
+                    repository=self.repo, filter_substring="",
+                    ascii_tree=flag,
+                )
+                code, out, _ = run_cli(
+                    ["stage5", "-c", write_yaml(self.dir, data)])
+                self.assertEqual(code, EXIT_OK)
+                self.assertEqual("ASCII-дерево" in out, flag)
 
 
 if __name__ == "__main__":
