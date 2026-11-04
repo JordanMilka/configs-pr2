@@ -1,0 +1,35 @@
+digraph "apkindex" {
+  rankdir=LR;
+  node [shape=box];
+  "libblkid-2.40.1-r1" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "libeconf-0.6.3-r0" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "libblkid-2.40.1-r1" -> "libeconf-0.6.3-r0"[arrowhead=inv,label="so:libeconf.so.0",];
+  "util-linux-dev-2.40.1-r1" -> "libblkid-2.40.1-r1"[];
+  "libfdisk-2.40.1-r1" -> "libblkid-2.40.1-r1"[arrowhead=inv,label="so:libblkid.so.1",];
+  "libfdisk-2.40.1-r1" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "libuuid-2.40.1-r1" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "libfdisk-2.40.1-r1" -> "libuuid-2.40.1-r1"[arrowhead=inv,label="so:libuuid.so.1",];
+  "util-linux-dev-2.40.1-r1" -> "libfdisk-2.40.1-r1"[];
+  "libmount-2.40.1-r1" -> "libblkid-2.40.1-r1"[arrowhead=inv,label="so:libblkid.so.1",];
+  "libmount-2.40.1-r1" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "util-linux-dev-2.40.1-r1" -> "libmount-2.40.1-r1"[];
+  "libsmartcols-2.40.1-r1" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "util-linux-dev-2.40.1-r1" -> "libsmartcols-2.40.1-r1"[];
+  "util-linux-dev-2.40.1-r1" -> "libuuid-2.40.1-r1"[];
+  "sqlite-3.45.3-r3" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "readline-8.2.10-r0" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "libncursesw-6.4_p20240420-r2" -> "ncurses-terminfo-base-6.4_p20240420-r2"[];
+  "libncursesw-6.4_p20240420-r2" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "readline-8.2.10-r0" -> "libncursesw-6.4_p20240420-r2"[arrowhead=inv,label="so:libncursesw.so.6",];
+  "sqlite-3.45.3-r3" -> "readline-8.2.10-r0"[arrowhead=inv,label="so:libreadline.so.8",];
+  "sqlite-dev-3.45.3-r3" -> "sqlite-3.45.3-r3"[];
+  "pkgconf-2.2.0-r0" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "sqlite-dev-3.45.3-r3" -> "pkgconf-2.2.0-r0"[arrowhead=inv,label="pkgconfig",];
+  "sqlite-libs-3.45.3-r3" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "sqlite-dev-3.45.3-r3" -> "sqlite-libs-3.45.3-r3"[];
+  "util-linux-dev-2.40.1-r1" -> "sqlite-dev-3.45.3-r3"[arrowhead=inv,label="pc:sqlite3",];
+  "util-linux-dev-2.40.1-r1" -> "pkgconf-2.2.0-r0"[arrowhead=inv,label="pkgconfig",];
+  "util-linux-2.40.1-r1" -> "musl-1.2.5-r4"[arrowhead=inv,label="so:libc.musl-x86_64.so.1",];
+  "util-linux-2.40.1-r1" -> "sqlite-libs-3.45.3-r3"[arrowhead=inv,label="so:libsqlite3.so.0",];
+  "util-linux-dev-2.40.1-r1" -> "util-linux-2.40.1-r1"[];
+}
