@@ -24,8 +24,96 @@ def run_cli(args):
     return code, out.getvalue(), err.getvalue()
 
 
+class Stage1Tests(unittest.TestCase):
+    """Команда stage1: вывод параметров конфигурации."""
+
+    def setUp(self):
+        """Создать временную директорию."""
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = self._tmp.name
+
+    def test_prints_all_params(self):
+        """Все параметры выводятся в формате ключ-значение."""
+        path = write_yaml(self.dir, make_config())
+        code, out, _ = run_cli(["stage1", "--config", path])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("package_name: busybox", out)
+        self.assertIn("test_mode: false", out)
+        self.assertIn("package_version: 1.36.1-r29", out)
+        self.assertIn("ascii_tree: true", out)
+        self.assertIn("filter_substring: musl", out)
+        self.assertIn("repository: https://", out)
+
+    def test_empty_filter_shown(self):
+        """Пустая подстрока выводится как \"\"."""
+        path = write_yaml(self.dir, make_config(filter_substring=""))
+        _, out, _ = run_cli(["stage1", "-c", path])
+        self.assertIn('filter_substring: ""', out)
+
+    def test_needs_no_network(self):
+        """stage1 не обращается к репозиторию (адрес недоступен)."""
+        data = make_config(repository="http://127.0.0.1:1/x86_64")
+        path = write_yaml(self.dir, data)
+        code, out, _ = run_cli(["stage1", "-c", path])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("127.0.0.1", out)
+
+    def test_config_error(self):
+        """Ошибка конфигурации - код 2, stdout пуст."""
+        path = write_yaml(self.dir, make_config(package_name=""))
+        code, out, err = run_cli(["stage1", "-c", path])
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+        self.assertFalse(out)
+        self.assertIn("Ошибка конфигурации", err)
+
+
+class CommandLineTests(unittest.TestCase):
+    """Разбор аргументов командной строки."""
+
+    def parse_failure(self, argv):
+        """Вернуть (код, stderr) для аргументов, вызывающих выход."""
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                main(argv)
+        return ctx.exception.code, err.getvalue()
+
+    def test_command_required(self):
+        """Без команды этапа программа завершается с кодом 2."""
+        code, err = self.parse_failure([])
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+        self.assertIn("КОМАНДА", err)
+
+    def test_unknown_command(self):
+        """Неизвестная команда."""
+        code, err = self.parse_failure(["stage9"])
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+        self.assertIn("stage9", err)
+
+    def test_config_before_command_rejected(self):
+        """Опция --config указывается после команды этапа."""
+        code, _ = self.parse_failure(["--config", "x.yaml", "stage1"])
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+
+    def test_help_lists_stages(self):
+        """Справка перечисляет команды этапов."""
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            with self.assertRaises(SystemExit) as ctx:
+                main(["--help"])
+        self.assertEqual(ctx.exception.code, EXIT_OK)
+        self.assertIn("stage1", out.getvalue())
+        self.assertIn("stage2", out.getvalue())
+
+    def test_unknown_option(self):
+        """Неизвестная опция."""
+        code, _ = self.parse_failure(["stage1", "--bogus"])
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+
+
 class CliTests(unittest.TestCase):
-    """Проверка поведения CLI на локальном репозитории."""
+    """Команда stage2 на локальном репозитории."""
 
     def setUp(self):
         """Создать временную директорию и локальный репозиторий."""
@@ -38,7 +126,8 @@ class CliTests(unittest.TestCase):
         """Запустить CLI с конфигурацией, указывающей на репозиторий."""
         overrides.setdefault("repository", self.repo)
         data = make_config(**overrides)
-        return run_cli(["--config", write_yaml(self.dir, data)])
+        path = write_yaml(self.dir, data)
+        return run_cli(["stage2", "--config", path])
 
     def test_prints_direct_dependencies(self):
         """Выводятся все прямые зависимости пакета."""
@@ -97,14 +186,15 @@ class CliTests(unittest.TestCase):
     def test_config_error_exit_code(self):
         """Ошибка конфигурации - код 2, stdout пуст."""
         path = write_yaml(self.dir, make_config(package_name=""))
-        code, out, err = run_cli(["-c", path])
+        code, out, err = run_cli(["stage2", "-c", path])
         self.assertEqual(code, EXIT_CONFIG_ERROR)
         self.assertFalse(out)
         self.assertIn("Ошибка конфигурации", err)
 
     def test_missing_config_file(self):
         """Несуществующий файл конфигурации."""
-        code, _, err = run_cli(["-c", os.path.join(self.dir, "x.yaml")])
+        missing = os.path.join(self.dir, "x.yaml")
+        code, _, err = run_cli(["stage2", "-c", missing])
         self.assertEqual(code, EXIT_CONFIG_ERROR)
         self.assertIn("не найден", err)
 
@@ -113,16 +203,9 @@ class CliTests(unittest.TestCase):
         cwd = os.getcwd()
         os.chdir(self.dir)
         self.addCleanup(os.chdir, cwd)
-        code, _, err = run_cli([])
+        code, _, err = run_cli(["stage2"])
         self.assertEqual(code, EXIT_CONFIG_ERROR)
         self.assertIn("config.yaml", err)
-
-    def test_unknown_argument(self):
-        """Неизвестный аргумент обрабатывает argparse."""
-        with contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as ctx:
-                main(["--bogus"])
-        self.assertEqual(ctx.exception.code, EXIT_CONFIG_ERROR)
 
 
 if __name__ == "__main__":
