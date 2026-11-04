@@ -17,8 +17,15 @@
   по URL, разбор формата apk и вывод прямых зависимостей пакета заданной
   версии.
 
+Каждый этап запускается **отдельной командой** (подкомандой):
+
+| Команда                           | Что делает                               |
+|-----------------------------------|------------------------------------------|
+| `python -m depgraph stage1`       | выводит параметры конфигурации           |
+| `python -m depgraph stage2`       | выводит прямые зависимости пакета        |
+
 Следующие этапы (граф, обратные зависимости, Mermaid) добавляются
-отдельными коммитами.
+отдельными коммитами и своими командами `stage3`, `stage4` и т.д.
 
 Как это работает. Репозиторий Alpine хранит для каждой архитектуры файл
 `APKINDEX.tar.gz` - tar-архив со сжатым текстовым индексом `APKINDEX`.
@@ -29,7 +36,9 @@
 
 ```
 src/depgraph/
-  cli.py          командная строка, вывод результата
+  cli.py          командная строка: команды этапов, коды завершения
+  stage1.py       этап 1: вывод параметров конфигурации
+  stage2.py       этап 2: прямые зависимости пакета
   config.py       загрузка и проверка конфигурации
   simple_yaml.py  разбор плоского YAML
   repository.py   загрузка и распаковка APKINDEX.tar.gz
@@ -70,18 +79,38 @@ Makefile          запуск и тесты
 ### Командная строка
 
 ```
-python -m depgraph [-c PATH]
+python -m depgraph КОМАНДА [-c PATH]
 ```
+
+| Команда  | Описание                                                    |
+|----------|-------------------------------------------------------------|
+| `stage1` | этап 1: вывести параметры конфигурации (`ключ: значение`)   |
+| `stage2` | этап 2: вывести прямые зависимости пакета заданной версии   |
+
+Команда обязательна. Опции указываются **после** команды:
 
 | Опция            | Описание                                       |
 |------------------|------------------------------------------------|
 | `-c`, `--config` | путь к YAML-файлу (по умолчанию `config.yaml`) |
-| `-h`, `--help`   | справка                                        |
+| `-h`, `--help`   | справка (`depgraph -h` или `depgraph stage2 -h`) |
 
 Коды завершения: `0` - успех; `2` - ошибка конфигурации или аргументов;
 `3` - ошибка получения данных (сеть, архив, нет пакета или версии).
 
-### Что выводится
+### Что выводит stage1
+
+Все шесть параметров в формате `ключ: значение`; сеть не используется:
+
+```
+package_name: busybox
+repository: https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64
+test_mode: false
+package_version: 1.36.1-r29
+ascii_tree: true
+filter_substring: musl
+```
+
+### Что выводит stage2
 
 Прямые зависимости печатаются так, как они записаны в индексе (поле `D:`),
 по одной на строку: обычные пакеты (`musl>=1.2.5`), виртуальные имена
@@ -97,7 +126,11 @@ python -m depgraph [-c PATH]
   `find_package(packages, name, version)`; классы `Package`, `Dependency`.
 - `config.py`: `load_config(path)`, `validate(raw)`, класс `Config`.
 - `simple_yaml.py`: `parse_yaml(text)`.
-- `cli.py`: `main(argv)`, `fetch_package`, `format_dependencies`.
+- `stage1.py`: `run(config, stream)`, `format_value`.
+- `stage2.py`: `run(config, stream)`, `fetch_package`,
+  `format_dependencies`.
+- `cli.py`: `main(argv)`, `build_parser`; словарь `STAGES` связывает имя
+  команды с модулем этапа (у модуля есть `SUMMARY` и `run`).
 
 ### Обработка ошибок
 
@@ -117,7 +150,9 @@ python -m depgraph [-c PATH]
 Linux/macOS (с make):
 
 ```
-make run       # запуск с examples/config.yaml (нужен доступ в интернет)
+make stage1    # этап 1 с examples/config.yaml
+make stage2    # этап 2 (нужен доступ в интернет)
+make stage2 CONFIG=my.yaml
 make test      # запуск тестов
 ```
 
@@ -125,7 +160,8 @@ make test      # запуск тестов
 
 ```
 $env:PYTHONPATH = "src"      # Linux/macOS: export PYTHONPATH=src
-python -m depgraph -c examples/config.yaml
+python -m depgraph stage1 -c examples/config.yaml
+python -m depgraph stage2 -c examples/config.yaml
 python -m unittest discover -s tests -v
 ```
 
@@ -134,10 +170,22 @@ python -m unittest discover -s tests -v
 
 ## 4. Примеры использования
 
-Реальный репозиторий (`examples/config.yaml`):
+Этап 1 (`examples/config.yaml`):
 
 ```
-$ python -m depgraph -c examples/config.yaml
+$ python -m depgraph stage1 -c examples/config.yaml
+package_name: busybox
+repository: https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64
+test_mode: false
+package_version: 1.36.1-r29
+ascii_tree: true
+filter_substring: musl
+```
+
+Этап 2, реальный репозиторий:
+
+```
+$ python -m depgraph stage2 -c examples/config.yaml
 ```
 
 Если версии нет в индексе, приложение покажет доступные:
@@ -152,7 +200,7 @@ $ python -m depgraph -c examples/config.yaml
 Успешный запуск:
 
 ```
-$ python -m depgraph -c ok.yaml
+$ python -m depgraph stage2 -c ok.yaml
 Пакет: busybox 1.36.1-r29
 Прямые зависимости (2):
   so:libc.musl-x86_64.so.1
@@ -183,10 +231,18 @@ $ python -m depgraph -c ok.yaml
 Ошибка получения данных: не удалось подключиться к http://127.0.0.1:8799/x86_64/APKINDEX.tar.gz: [Errno 111] Connection refused
 ```
 
-Ошибка конфигурации (код 2):
+Ошибка конфигурации - одинакова для обеих команд (код 2):
 
 ```
 Ошибка конфигурации:
   - параметр 'package_name': недопустимое имя '-bad name'; ...
   - параметр 'test_mode' должен быть логическим (true/false), получено: 'yes'
+```
+
+Команда не указана или неизвестна (код 2):
+
+```
+$ python -m depgraph
+usage: depgraph [-h] КОМАНДА ...
+depgraph: error: the following arguments are required: КОМАНДА
 ```
