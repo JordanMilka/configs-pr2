@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from depgraph import stage1, stage2, stage3, stage4
+from depgraph import stage1, stage2, stage3, stage4, stage5
 from depgraph.config import load_config
 from depgraph.errors import ConfigError, RepositoryError
 
@@ -16,6 +16,7 @@ STAGES = {
     "stage2": stage2,
     "stage3": stage3,
     "stage4": stage4,
+    "stage5": stage5,
 }
 
 
