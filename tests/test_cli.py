@@ -98,7 +98,7 @@ class CommandLineTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 main(["--help"])
         self.assertEqual(ctx.exception.code, EXIT_OK)
-        for command in ("stage1", "stage2", "stage3", "stage4"):
+        for command in ("stage1", "stage2", "stage3", "stage4", "stage5"):
             self.assertIn(command, out.getvalue())
 
     def test_unknown_option(self):
@@ -432,6 +432,131 @@ class Stage4RealRepoTests(unittest.TestCase):
                                      repository=self.repo + "/missing")
         self.assertEqual(code, EXIT_DATA_ERROR)
         self.assertIn("404", err)
+
+
+class Stage5Tests(unittest.TestCase):
+    """Команда stage5: визуализация графа."""
+
+    def setUp(self):
+        """Создать временную директорию."""
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = self._tmp.name
+
+    def run_repo(self, text, **overrides):
+        """Записать тестовый репозиторий и запустить stage5."""
+        repo = write_text(self.dir, text, name="repo.txt")
+        overrides.setdefault("package_name", "A")
+        overrides.setdefault("filter_substring", "")
+        data = make_config(repository=repo, test_mode=True, **overrides)
+        path = write_yaml(self.dir, data)
+        return run_cli(["stage5", "-c", path])
+
+    def test_mermaid_only(self):
+        """Без ascii_tree выводится только диаграмма Mermaid."""
+        code, out, _ = self.run_repo("A: B\nB:\n", ascii_tree=False)
+        self.assertEqual(code, EXIT_OK)
+        self.assertTrue(out.startswith("graph TD\n"))
+        self.assertIn("    A --> B", out)
+        self.assertNotIn("ASCII-дерево", out)
+
+    def test_mermaid_and_tree(self):
+        """С ascii_tree выводятся диаграмма и дерево."""
+        code, out, _ = self.run_repo("A: B C\nB:\nC:\n", ascii_tree=True)
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("    A --> C", out)
+        self.assertIn("ASCII-дерево зависимостей:\nA\n|-- B\n`-- C", out)
+
+    def test_filter_removes_nodes(self):
+        """Исключённые фильтром пакеты не попадают в диаграмму и дерево."""
+        text = "A: AB C\nAB: C\nC:\n"
+        _, out, _ = self.run_repo(text, ascii_tree=True,
+                                  filter_substring="B")
+        self.assertNotIn("AB", out)
+        self.assertIn("    A --> C", out)
+
+    def test_cycle_is_drawn(self):
+        """Цикл виден и в диаграмме, и в дереве."""
+        _, out, _ = self.run_repo("A: B\nB: A\n", ascii_tree=True)
+        self.assertIn("    B --> A", out)
+        self.assertIn("`-- A (цикл)", out)
+
+    def test_unknown_package(self):
+        """Неизвестный пакет - код 3, stdout пуст."""
+        code, out, err = self.run_repo("A:\n", package_name="Q")
+        self.assertEqual(code, EXIT_DATA_ERROR)
+        self.assertFalse(out)
+        self.assertIn("'Q' не найден", err)
+
+    def test_config_error(self):
+        """Ошибка конфигурации - код 2."""
+        data = make_config(ascii_tree="да", test_mode=True)
+        path = write_yaml(self.dir, data)
+        code, _, err = run_cli(["stage5", "-c", path])
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+        self.assertIn("ascii_tree", err)
+
+
+class Stage5ExamplesTests(unittest.TestCase):
+    """Демонстрационные конфигурации этапа 5."""
+
+    def run_example(self, name):
+        """Запустить stage5 с примером из корня репозитория."""
+        cwd = os.getcwd()
+        os.chdir(ROOT)
+        self.addCleanup(os.chdir, cwd)
+        return run_cli(["stage5", "-c", f"examples/{name}"])
+
+    def test_examples(self):
+        """Каждый пример даёт ожидаемый фрагмент вывода."""
+        cases = {
+            "config_viz_diamond.yaml": "|-- B\n|   `-- D",
+            "config_viz_cycle.yaml": "|-- E (цикл)",
+            "config_viz_unresolved.yaml": "    class N missing",
+            "config_viz_shared.yaml": "    `-- W (*)",
+        }
+        for name, expected in cases.items():
+            with self.subTest(example=name):
+                code, out, _ = self.run_example(name)
+                self.assertEqual(code, EXIT_OK)
+                self.assertIn(expected, out)
+
+    def test_unresolved_example_has_no_tree(self):
+        """В примере с ascii_tree: false дерева нет."""
+        _, out, _ = self.run_example("config_viz_unresolved.yaml")
+        self.assertNotIn("ASCII-дерево", out)
+
+
+class Stage5RealRepoTests(unittest.TestCase):
+    """Команда stage5 с реальным (локально эмулируемым) репозиторием."""
+
+    def setUp(self):
+        """Создать временную директорию и локальный репозиторий."""
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = self._tmp.name
+        self.repo = start_repo(self)
+
+    def test_names_with_dashes_and_dots(self):
+        """Имена Alpine с дефисами и точками получают подписи."""
+        data = make_config(
+            package_name="app", package_version="2.0-r0",
+            repository=self.repo, ascii_tree=True, filter_substring="",
+        )
+        code, out, _ = run_cli(
+            ["stage5", "-c", write_yaml(self.dir, data)])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("    app --> musl", out)
+        self.assertIn("    app --> busybox", out)
+        self.assertIn("    busybox --> musl", out)
+        self.assertIn("app\n|-- musl\n`-- busybox\n    `-- musl", out)
+
+    def test_unknown_version(self):
+        """Неверная версия корня - код 3."""
+        data = make_config(package_version="0.0", repository=self.repo)
+        code, _, err = run_cli(["stage5", "-c", write_yaml(self.dir, data)])
+        self.assertEqual(code, EXIT_DATA_ERROR)
+        self.assertIn("доступные версии", err)
 
 
 class CliTests(unittest.TestCase):
