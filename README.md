@@ -297,32 +297,135 @@ D:
 в архиве, пакет не найден, версия не найдена (в сообщении перечислены
 доступные версии).
 
-## 3. Сборка и тесты
+## 3. Сборка, запуск и тесты
 
-Сборка не нужна, зависимости устанавливать не нужно.
+Сборка не нужна, зависимости устанавливать не нужно. Все команды
+выполняются из корня проекта (там, где лежат `src`, `tests`,
+`examples`).
 
-Linux/macOS (с make):
+### Подготовка
 
-```
-make stage1    # этап 1 с examples/config.yaml
-make stage2    # этап 2 (нужен доступ в интернет)
-make stage3 CONFIG=examples/config_test_cycle.yaml
-make stage4 CONFIG=examples/config_reverse_diamond.yaml
-make stage5 CONFIG=examples/config_real_curl.yaml
-make stage2 CONFIG=my.yaml
-make test      # запуск тестов
-```
-
-Без make (в том числе Windows PowerShell):
+Windows PowerShell:
 
 ```
-$env:PYTHONPATH = "src"      # Linux/macOS: export PYTHONPATH=src
+$env:PYTHONPATH = "src"
+```
+
+Linux/macOS:
+
+```
+export PYTHONPATH=src
+```
+
+Переменная действует только в текущем окне терминала. Под Linux/macOS
+можно вместо неё использовать `make` (он задаёт `PYTHONPATH` сам),
+примеры `make` приведены ниже.
+
+### Запуск каждого этапа
+
+Общий вид: `python -m depgraph КОМАНДА -c ФАЙЛ_КОНФИГУРАЦИИ`.
+Команды с пометкой «интернет» обращаются к `dl-cdn.alpinelinux.org`,
+остальные работают офлайн.
+
+**Этап 1. Конфигурация** - вывод параметров в формате `ключ: значение`:
+
+```
 python -m depgraph stage1 -c examples/config.yaml
+make stage1
+```
+
+**Этап 2. Сбор данных** - прямые зависимости пакета заданной версии
+(интернет; работает только с URL, `test_mode: false`):
+
+```
 python -m depgraph stage2 -c examples/config.yaml
-python -m depgraph stage3 -c examples/config_test_mode.yaml
-python -m depgraph stage4 -c examples/config_reverse_diamond.yaml
-python -m depgraph stage5 -c examples/config_viz_shared.yaml
-python -m unittest discover -s tests -v
+make stage2
+```
+
+Если версия из конфигурации отсутствует в индексе, программа выведет
+доступные версии: подставьте нужную в `package_version`.
+
+**Этап 3. Граф транзитивных зависимостей** (BFS с рекурсией).
+Тестовый репозиторий (офлайн), по одному случаю на конфигурацию:
+
+```
+python -m depgraph stage3 -c examples/config_test_mode.yaml        # ромб
+python -m depgraph stage3 -c examples/config_test_cycle.yaml       # цикл
+python -m depgraph stage3 -c examples/config_test_self_loop.yaml   # зависимость от себя
+python -m depgraph stage3 -c examples/config_test_filter.yaml      # фильтр по подстроке
+python -m depgraph stage3 -c examples/config_test_unresolved.yaml  # пакет не описан
+python -m depgraph stage3 -c examples/config_test_leaf.yaml        # без зависимостей
+make stage3 CONFIG=examples/config_test_cycle.yaml
+```
+
+Реальные пакеты Alpine (интернет), глубина графа 3, 4 и 5:
+
+```
+python -m depgraph stage3 -c examples/config_real_alsaconf.yaml
+python -m depgraph stage3 -c examples/config_real_curl.yaml
+python -m depgraph stage3 -c examples/config_real_util_linux_dev.yaml
+```
+
+**Этап 4. Обратные зависимости** (офлайн, тестовый репозиторий):
+
+```
+python -m depgraph stage4 -c examples/config_reverse_diamond.yaml     # ромб
+python -m depgraph stage4 -c examples/config_reverse_cycle.yaml       # цикл
+python -m depgraph stage4 -c examples/config_reverse_self_loop.yaml   # зависимость от себя
+python -m depgraph stage4 -c examples/config_reverse_filter.yaml      # фильтр по подстроке
+python -m depgraph stage4 -c examples/config_reverse_unresolved.yaml  # пакет не описан
+python -m depgraph stage4 -c examples/config_reverse_chain.yaml       # цепочка
+python -m depgraph stage4 -c examples/config_reverse_none.yaml        # никто не зависит
+make stage4 CONFIG=examples/config_reverse_diamond.yaml
+```
+
+**Этап 5. Визуализация** - диаграмма Mermaid и (при `ascii_tree: true`)
+ASCII-дерево. Тестовый репозиторий (офлайн):
+
+```
+python -m depgraph stage5 -c examples/config_viz_diamond.yaml     # ромб, диаграмма и дерево
+python -m depgraph stage5 -c examples/config_viz_cycle.yaml       # цикл, пометка (цикл)
+python -m depgraph stage5 -c examples/config_viz_shared.yaml      # общая зависимость, пометка (*)
+python -m depgraph stage5 -c examples/config_viz_unresolved.yaml  # только Mermaid (ascii_tree: false)
+make stage5 CONFIG=examples/config_viz_shared.yaml
+```
+
+Реальные пакеты Alpine (интернет), три разных пакета:
+
+```
+python -m depgraph stage5 -c examples/config_real_alsaconf.yaml
+python -m depgraph stage5 -c examples/config_real_curl.yaml
+python -m depgraph stage5 -c examples/config_real_util_linux_dev.yaml
+```
+
+### Собственная конфигурация
+
+Скопируйте любой файл из `examples/`, измените параметры (см. раздел 2)
+и передайте через `-c`, например:
+
+```
+python -m depgraph stage3 -c my_config.yaml
+make stage3 CONFIG=my_config.yaml
+```
+
+Чтобы проверить обработку ошибок:
+
+```
+python -m depgraph stage3 -c no_such_file.yaml   # файл не найден, код 2
+python -m depgraph                                # не указана команда, код 2
+python -m depgraph -h                             # справка по командам
+python -m depgraph stage3 -h                      # справка по этапу
+```
+
+Код завершения: PowerShell - `echo $LASTEXITCODE`, Linux/macOS -
+`echo $?`.
+
+### Тесты
+
+```
+python -m unittest discover -s tests -v                          # все тесты
+python -m unittest discover -s tests -p "test_real_packages.py" -v   # реальные пакеты
+make test
 ```
 
 Тесты не требуют интернета: индекс собирается в памяти и отдаётся
