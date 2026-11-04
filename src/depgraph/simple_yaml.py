@@ -28,18 +28,37 @@ def syntax_error(number, message):
     raise ConfigError([f"строка {number}: {message}"])
 
 
+def advance_quote(quote, escaped, char):
+    """Вернуть состояние (quote, escaped) после очередного символа.
+
+    quote - открытая кавычка или None, escaped - предыдущий символ был
+    обратной косой чертой внутри двойных кавычек.
+    """
+    if escaped:
+        return quote, False
+    if char == "\\" and quote == '"':
+        return quote, True
+    if char == quote:
+        return None, False
+    return quote, False
+
+
+def is_comment_start(text, index):
+    """Проверить, что символ text[index] начинает комментарий."""
+    if text[index] != "#":
+        return False
+    return not index or text[index - 1].isspace()
+
+
 def strip_comment(text):
     """Отрезать комментарий '# ...', не затрагивая текст в кавычках."""
     quote, escaped = None, False
     for index, char in enumerate(text):
-        if escaped:
-            escaped = False
-        elif quote:
-            escaped = char == "\\" and quote == '"'
-            quote = None if char == quote and not escaped else quote
+        if quote:
+            quote, escaped = advance_quote(quote, escaped, char)
         elif char in QUOTES:
             quote = char
-        elif char == "#" and (not index or text[index - 1].isspace()):
+        elif is_comment_start(text, index):
             return text[:index]
     return text
 
