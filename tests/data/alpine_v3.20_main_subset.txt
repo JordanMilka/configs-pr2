@@ -1,0 +1,186 @@
+P:alsa-lib
+V:1.2.11-r0
+D:so:libc.musl-x86_64.so.1
+p:so:libasound.so.2=2.0.0 so:libatopology.so.2=2.0.0
+
+P:alsa-ucm-conf
+V:1.2.11-r1
+
+P:alsa-utils
+V:1.2.11-r1
+D:dialog alsa-ucm-conf so:libasound.so.2 so:libatopology.so.2 so:libc.musl-x86_64.so.1 so:libfftw3f.so.3 so:libformw.so.6 so:libmenuw.so.6 so:libncursesw.so.6 so:libpanelw.so.6
+
+P:alsaconf
+V:1.2.11-r1
+D:alsa-utils=1.2.11-r1 bash
+
+P:bash
+V:5.2.26-r0
+D:/bin/sh so:libc.musl-x86_64.so.1 so:libreadline.so.8
+
+P:brotli-libs
+V:1.1.0-r2
+D:so:libc.musl-x86_64.so.1
+p:so:libbrotlidec.so.1=1.1.0
+
+P:busybox
+V:1.36.1-r31
+D:so:libc.musl-x86_64.so.1
+
+P:busybox-binsh
+V:1.36.1-r31
+D:busybox=1.36.1-r31
+p:/bin/sh
+
+P:c-ares
+V:1.33.1-r0
+D:so:libc.musl-x86_64.so.1
+p:so:libcares.so.2=2.18.1
+
+P:ca-certificates
+V:20261020-r0
+D:/bin/sh so:libc.musl-x86_64.so.1 so:libcrypto.so.3
+
+P:curl
+V:8.14.1-r2
+D:libcurl=8.14.1-r2 so:libc.musl-x86_64.so.1 so:libcurl.so.4 so:libz.so.1
+
+P:dialog
+V:1.3.20240307-r0
+D:so:libc.musl-x86_64.so.1 so:libncursesw.so.6
+
+P:fftw-single-libs
+V:3.3.10-r5
+D:so:libc.musl-x86_64.so.1
+p:so:libfftw3f.so.3=3.6.10
+
+P:libblkid
+V:2.40.1-r1
+D:so:libc.musl-x86_64.so.1 so:libeconf.so.0
+p:so:libblkid.so.1=1.1.0
+
+P:libcrypto3
+V:3.3.7-r0
+D:so:libc.musl-x86_64.so.1
+p:so:libcrypto.so.3=3
+
+P:libcurl
+V:8.14.1-r2
+D:ca-certificates so:libbrotlidec.so.1 so:libc.musl-x86_64.so.1 so:libcares.so.2 so:libcrypto.so.3 so:libidn2.so.0 so:libnghttp2.so.14 so:libpsl.so.5 so:libssl.so.3 so:libz.so.1 so:libzstd.so.1
+p:so:libcurl.so.4=4.8.0
+
+P:libeconf
+V:0.6.3-r0
+D:so:libc.musl-x86_64.so.1
+p:so:libeconf.so.0=0.6.2
+
+P:libfdisk
+V:2.40.1-r1
+D:so:libblkid.so.1 so:libc.musl-x86_64.so.1 so:libuuid.so.1
+
+P:libformw
+V:6.4_p20240420-r2
+D:ncurses-terminfo-base=6.4_p20240420-r2 so:libc.musl-x86_64.so.1 so:libncursesw.so.6
+p:so:libformw.so.6=6.4
+
+P:libidn2
+V:2.3.7-r0
+D:so:libc.musl-x86_64.so.1 so:libunistring.so.5
+p:so:libidn2.so.0=0.4.0
+
+P:libmenuw
+V:6.4_p20240420-r2
+D:ncurses-terminfo-base=6.4_p20240420-r2 so:libc.musl-x86_64.so.1 so:libncursesw.so.6
+p:so:libmenuw.so.6=6.4
+
+P:libmount
+V:2.40.1-r1
+D:so:libblkid.so.1 so:libc.musl-x86_64.so.1
+
+P:libncursesw
+V:6.4_p20240420-r2
+D:ncurses-terminfo-base=6.4_p20240420-r2 so:libc.musl-x86_64.so.1
+p:so:libncursesw.so.6=6.4
+
+P:libpanelw
+V:6.4_p20240420-r2
+D:ncurses-terminfo-base=6.4_p20240420-r2 so:libc.musl-x86_64.so.1 so:libncursesw.so.6
+p:so:libpanelw.so.6=6.4
+
+P:libpsl
+V:0.21.5-r1
+D:so:libc.musl-x86_64.so.1 so:libidn2.so.0 so:libunistring.so.5
+p:so:libpsl.so.5=5.3.5
+
+P:libsmartcols
+V:2.40.1-r1
+D:so:libc.musl-x86_64.so.1
+
+P:libssl3
+V:3.3.7-r0
+D:libcrypto3=3.3.7-r0 so:libc.musl-x86_64.so.1 so:libcrypto.so.3
+p:so:libssl.so.3=3
+
+P:libunistring
+V:1.2-r0
+D:so:libc.musl-x86_64.so.1
+p:so:libunistring.so.5=5.1.0
+
+P:libuuid
+V:2.40.1-r1
+D:so:libc.musl-x86_64.so.1
+p:so:libuuid.so.1=1.3.0
+
+P:musl
+V:1.2.5-r4
+p:so:libc.musl-x86_64.so.1=1
+
+P:ncurses-terminfo-base
+V:6.4_p20240420-r2
+
+P:nghttp2-libs
+V:1.62.1-r0
+D:so:libc.musl-x86_64.so.1
+p:so:libnghttp2.so.14=14.28.1
+
+P:pkgconf
+V:2.2.0-r0
+D:so:libc.musl-x86_64.so.1
+p:pkgconfig=1
+
+P:readline
+V:8.2.10-r0
+D:so:libc.musl-x86_64.so.1 so:libncursesw.so.6
+p:so:libreadline.so.8=8.2
+
+P:sqlite
+V:3.45.3-r3
+D:so:libc.musl-x86_64.so.1 so:libreadline.so.8
+
+P:sqlite-dev
+V:3.45.3-r3
+D:sqlite=3.45.3-r3 pkgconfig sqlite-libs=3.45.3-r3
+p:pc:sqlite3=3.45.3
+
+P:sqlite-libs
+V:3.45.3-r3
+D:so:libc.musl-x86_64.so.1
+p:so:libsqlite3.so.0=0.8.6
+
+P:util-linux
+V:2.40.1-r1
+D:so:libc.musl-x86_64.so.1 so:libsqlite3.so.0
+
+P:util-linux-dev
+V:2.40.1-r1
+D:libblkid=2.40.1-r1 libfdisk=2.40.1-r1 libmount=2.40.1-r1 libsmartcols=2.40.1-r1 libuuid=2.40.1-r1 pc:sqlite3 pkgconfig util-linux=2.40.1-r1
+
+P:zlib
+V:1.3.2-r0
+D:so:libc.musl-x86_64.so.1
+p:so:libz.so.1=1.3.2
+
+P:zstd-libs
+V:1.5.6-r0
+D:so:libc.musl-x86_64.so.1
+p:so:libzstd.so.1=1.5.6
