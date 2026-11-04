@@ -1,0 +1,6 @@
+package_name: D
+repository: examples/test_repo.txt
+test_mode: true
+package_version: "1.0"
+ascii_tree: false
+filter_substring: ""
