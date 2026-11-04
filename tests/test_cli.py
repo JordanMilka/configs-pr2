@@ -98,8 +98,8 @@ class CommandLineTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as ctx:
                 main(["--help"])
         self.assertEqual(ctx.exception.code, EXIT_OK)
-        self.assertIn("stage1", out.getvalue())
-        self.assertIn("stage2", out.getvalue())
+        for command in ("stage1", "stage2", "stage3", "stage4"):
+            self.assertIn(command, out.getvalue())
 
     def test_unknown_option(self):
         """Неизвестная опция."""
@@ -272,6 +272,166 @@ class Stage3RealRepoTests(unittest.TestCase):
                                      filter_substring="")
         self.assertEqual(code, EXIT_DATA_ERROR)
         self.assertIn("доступные версии", err)
+
+
+class Stage4Tests(unittest.TestCase):
+    """Команда stage4: обратные зависимости."""
+
+    def setUp(self):
+        """Создать временную директорию."""
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = self._tmp.name
+
+    def run_repo(self, text, **overrides):
+        """Записать тестовый репозиторий и запустить stage4."""
+        repo = write_text(self.dir, text, name="repo.txt")
+        overrides.setdefault("filter_substring", "")
+        data = make_config(repository=repo, test_mode=True, **overrides)
+        path = write_yaml(self.dir, data)
+        return run_cli(["stage4", "-c", path])
+
+    def test_dependents(self):
+        """Выводятся пакеты, зависящие от заданного, транзитивно."""
+        code, out, _ = self.run_repo("A: B\nB: D\nC: D\nD:\n",
+                                     package_name="D")
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("  D [0] <- B, C", out)
+        self.assertIn("  B [1] <- A", out)
+        self.assertIn("Пакеты, зависящие от D (3): B, C, A", out)
+        self.assertIn("Циклические зависимости: нет", out)
+
+    def test_no_dependents(self):
+        """Если от пакета никто не зависит."""
+        _, out, _ = self.run_repo("A: B\nB:\n", package_name="A")
+        self.assertIn("A [0] <- (никто не зависит)", out)
+        self.assertIn("Пакеты, зависящие от A (0): нет", out)
+
+    def test_cycle(self):
+        """Цикл среди зависящих пакетов."""
+        code, out, _ = self.run_repo("A: B\nB: A\n", package_name="A")
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("  A <- B <- A", out)
+
+    def test_filter(self):
+        """Фильтр исключает зависящие пакеты и выводит их список."""
+        text = "K: KB L\nKB: L\nL:\n"
+        _, out, _ = self.run_repo(text, package_name="L",
+                                  filter_substring="B")
+        self.assertIn("Исключено фильтром 'B': KB", out)
+        self.assertIn("Пакеты, зависящие от L (1): K", out)
+
+    def test_unknown_package(self):
+        """Неизвестный пакет - код 3."""
+        code, out, err = self.run_repo("A:\n", package_name="Q")
+        self.assertEqual(code, EXIT_DATA_ERROR)
+        self.assertFalse(out)
+        self.assertIn("'Q' не найден", err)
+
+    def test_root_excluded_by_filter(self):
+        """Корень содержит подстроку фильтра - код 3."""
+        code, _, err = self.run_repo("A:\n", package_name="A",
+                                     filter_substring="A")
+        self.assertEqual(code, EXIT_DATA_ERROR)
+        self.assertIn("исключён", err)
+
+    def test_malformed_repository_file(self):
+        """Ошибка формата файла репозитория - код 3."""
+        code, _, err = self.run_repo("A: b\n", package_name="A")
+        self.assertEqual(code, EXIT_DATA_ERROR)
+        self.assertIn("строка 1", err)
+
+    def test_config_error(self):
+        """Ошибка конфигурации - код 2."""
+        data = make_config(package_name="", test_mode=True)
+        path = write_yaml(self.dir, data)
+        code, _, err = run_cli(["stage4", "-c", path])
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+        self.assertIn("Ошибка конфигурации", err)
+
+
+class Stage4ExamplesTests(unittest.TestCase):
+    """Демонстрационные конфигурации этапа 4."""
+
+    def run_example(self, name):
+        """Запустить stage4 с примером из корня репозитория."""
+        cwd = os.getcwd()
+        os.chdir(ROOT)
+        self.addCleanup(os.chdir, cwd)
+        return run_cli(["stage4", "-c", f"examples/{name}"])
+
+    def test_examples(self):
+        """Каждый пример даёт ожидаемый фрагмент вывода."""
+        cases = {
+            "config_reverse_diamond.yaml":
+                "Пакеты, зависящие от D (3): B, C, A",
+            "config_reverse_cycle.yaml": "E <- G <- F <- E",
+            "config_reverse_self_loop.yaml": "  I <- I",
+            "config_reverse_filter.yaml":
+                "Исключено фильтром 'B': BK, KB",
+            "config_reverse_unresolved.yaml":
+                "Пакеты, зависящие от N (1): M",
+            "config_reverse_chain.yaml":
+                "Пакеты, зависящие от S (3): R, Q, P",
+            "config_reverse_none.yaml": "A [0] <- (никто не зависит)",
+        }
+        for name, expected in cases.items():
+            with self.subTest(example=name):
+                code, out, _ = self.run_example(name)
+                self.assertEqual(code, EXIT_OK)
+                self.assertIn(expected, out)
+
+    def test_stage3_examples_unchanged_by_chain_case(self):
+        """Добавленный случай не влияет на примеры этапа 3."""
+        cwd = os.getcwd()
+        os.chdir(ROOT)
+        self.addCleanup(os.chdir, cwd)
+        code, out, _ = run_cli(
+            ["stage3", "-c", "examples/config_test_mode.yaml"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("Транзитивные зависимости (3): B, C, D", out)
+
+
+class Stage4RealRepoTests(unittest.TestCase):
+    """Команда stage4 с реальным (локально эмулируемым) репозиторием."""
+
+    def setUp(self):
+        """Создать временную директорию и локальный репозиторий."""
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = self._tmp.name
+        self.repo = start_repo(self)
+
+    def run_with(self, **overrides):
+        """Запустить stage4 с конфигурацией для локального репозитория."""
+        overrides.setdefault("repository", self.repo)
+        overrides.setdefault("filter_substring", "")
+        path = write_yaml(self.dir, make_config(**overrides))
+        return run_cli(["stage4", "-c", path])
+
+    def test_dependents_through_provides(self):
+        """Зависящие от musl пакеты найдены через виртуальные имена."""
+        code, out, _ = self.run_with(package_name="musl",
+                                     package_version="1.2.5-r0")
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("  musl [0] <- busybox", out)
+        self.assertIn("  busybox [1] <- app", out)
+        self.assertIn("Пакеты, зависящие от musl (2): busybox, app", out)
+
+    def test_unknown_version_of_root(self):
+        """Версия корня должна существовать в индексе."""
+        code, _, err = self.run_with(package_name="musl",
+                                     package_version="0.0")
+        self.assertEqual(code, EXIT_DATA_ERROR)
+        self.assertIn("1.2.5-r0", err)
+
+    def test_unreachable_repository(self):
+        """Недоступный каталог репозитория - код 3."""
+        code, _, err = self.run_with(package_name="musl",
+                                     package_version="1.2.5-r0",
+                                     repository=self.repo + "/missing")
+        self.assertEqual(code, EXIT_DATA_ERROR)
+        self.assertIn("404", err)
 
 
 class CliTests(unittest.TestCase):
