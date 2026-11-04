@@ -1,0 +1,10 @@
+util-linux-dev-2.40.1-r1 depends on:
+libblkid=2.40.1-r1
+libfdisk=2.40.1-r1
+libmount=2.40.1-r1
+libsmartcols=2.40.1-r1
+libuuid=2.40.1-r1
+pc:sqlite3
+pkgconfig
+util-linux=2.40.1-r1
+

@@ -1,0 +1,4 @@
+alsaconf-1.2.11-r1 depends on:
+alsa-utils=1.2.11-r1
+bash
+

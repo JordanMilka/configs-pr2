@@ -1,0 +1,6 @@
+curl-8.14.1-r2 depends on:
+libcurl=8.14.1-r2
+so:libc.musl-x86_64.so.1
+so:libcurl.so.4
+so:libz.so.1
+
