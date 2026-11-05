@@ -259,8 +259,8 @@ D:
 ### Модули и функции
 
 - `graph.py`: `build_graph(source, root, substring)` - построение графа;
-  `visit_level` - рекурсивный BFS; `find_cycles`; класс
-  `DependencyGraph`.
+  `visit_level` - рекурсивный BFS (по уровням); `FilteredSource` -
+  фильтр по подстроке; `find_cycles`; класс `DependencyGraph`.
 - `apk_source.py`: класс `AlpineSource` - сопоставление зависимостей
   пакетам индекса Alpine.
 - `file_repo.py`: `load_file_source(path)`, `parse_repo_text(text)` -
