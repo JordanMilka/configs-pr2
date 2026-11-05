@@ -5,7 +5,7 @@ children(name) и множеством unresolved. Так один и тот ж�
 работает и с индексом Alpine, и с тестовым репозиторием.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from depgraph.errors import RepositoryError
 
@@ -36,51 +36,57 @@ class DependencyGraph:
         return [name for name in self.edges if name != self.root]
 
 
-@dataclass
-class WalkState:
-    """Изменяемое состояние обхода, общее для всех уровней BFS."""
-
-    source: object
-    substring: str
-    edges: dict = field(default_factory=dict)
-    levels: dict = field(default_factory=dict)
-    excluded: set = field(default_factory=set)
-
-
 def is_excluded(name, substring):
     """Проверить, исключает ли фильтр пакет (пустая подстрока - нет)."""
     return bool(substring) and substring in name
 
 
-def expand(name, depth, state, next_level):
-    """Обработать один пакет: записать его рёбра и найти новые вершины.
+class FilteredSource:
+    """Источник без пакетов, имя которых содержит подстроку фильтра.
 
-    Новые вершины добавляются в next_level, их уровень - depth + 1.
+    Исключённые пакеты не попадают в children (а значит, и вся их ветка
+    не обходится); их имена запоминаются в excluded.
     """
-    children = []
-    for child in state.source.children(name):
-        if is_excluded(child, state.substring):
-            state.excluded.add(child)
-            continue
-        children.append(child)
-        if child not in state.levels:
-            state.levels[child] = depth + 1
-            next_level.append(child)
-    state.edges[name] = tuple(children)
+
+    def __init__(self, source, substring):
+        """Обернуть источник source фильтром по подстроке substring."""
+        self.source = source
+        self.substring = substring
+        self.excluded = set()
+
+    def children(self, name):
+        """Вернуть зависимости пакета, кроме исключённых фильтром."""
+        result = []
+        for child in self.source.children(name):
+            if is_excluded(child, self.substring):
+                self.excluded.add(child)
+            else:
+                result.append(child)
+        return result
 
 
-def visit_level(frontier, depth, state):
-    """Обойти один уровень BFS и рекурсивно перейти к следующему.
+def visit_level(frontier, depth, source, edges, levels):
+    """BFS с рекурсией: обойти один уровень и перейти к следующему.
 
-    Уже посещённые вершины повторно не добавляются, поэтому циклические
-    зависимости не приводят к бесконечной рекурсии.
+    Args:
+        frontier: пакеты текущего уровня (глубина depth).
+        depth: расстояние от корня до пакетов frontier.
+        source: откуда брать зависимости (метод children).
+        edges: результат - пакет -> кортеж его зависимостей.
+        levels: пакет -> уровень; служит и списком посещённых пакетов,
+            поэтому пакет попадает в обход один раз и циклы не
+            приводят к бесконечной рекурсии.
     """
     if not frontier:
         return
     next_level = []
     for name in frontier:
-        expand(name, depth, state, next_level)
-    visit_level(next_level, depth + 1, state)
+        edges[name] = tuple(source.children(name))
+        for child in edges[name]:
+            if child not in levels:
+                levels[child] = depth + 1
+                next_level.append(child)
+    visit_level(next_level, depth + 1, source, edges, levels)
 
 
 def add_cycle(cycles, seen, nodes):
@@ -146,19 +152,19 @@ def build_graph(source, root, substring):
             глубокий для рекурсивного обхода.
     """
     check_root(source, root, substring)
-    state = WalkState(source, substring)
-    state.levels[root] = 0
+    filtered = FilteredSource(source, substring)
+    edges, levels = {}, {root: 0}
     try:
-        visit_level([root], 0, state)
+        visit_level([root], 0, filtered, edges, levels)
     except RecursionError as exc:
         raise RepositoryError(
             "граф зависимостей слишком глубокий для рекурсивного обхода"
         ) from exc
     return DependencyGraph(
         root=root,
-        edges=state.edges,
-        levels=state.levels,
-        excluded=tuple(sorted(state.excluded)),
+        edges=edges,
+        levels=levels,
+        excluded=tuple(sorted(filtered.excluded)),
         unresolved=tuple(sorted(source.unresolved)),
-        cycles=tuple(find_cycles(root, state.edges)),
+        cycles=tuple(find_cycles(root, edges)),
     )
